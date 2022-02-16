@@ -53,7 +53,7 @@ exports.signin = (req, res) => {
             var token = jwt.sign({ id: user.id }, process.env.SECRET_KEY, { expiresIn: 86400, });
             var authorities = [];
             for (let i = 0; i < user.roles.length; i++) {
-                authorities.push("ROLE_" + user.roles[i].name.toUpperCase());
+                authorities.push(user.roles[i].name);
             }
 
             req.session.token = token;
@@ -74,3 +74,29 @@ exports.signout = async (req, res) => {
         this.next(err);
     }
 };
+
+exports.checkRole = (req, res) => {
+    let token = req.session.token;
+    if (!token) return res.status(200).send({ roles: ["none"] });
+    jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+        if (err) return res.status(401).send({ message: "Unauthorized!" });
+        req.userId = decoded.id;
+    });
+    User.findOne({ _id: req.userId, })
+        .populate("roles", "-__v")
+        .exec((err, user) => {
+            if (err) { res.status(500).send({ message: err }); return; }
+
+            var authorities = [];
+            for (let i = 0; i < user.roles.length; i++) {
+                authorities.push(user.roles[i].name);
+            }
+
+            res.status(200).send({
+                id: user._id,
+                username: user.username,
+                email: user.email,
+                roles: authorities,
+            });
+        });
+}
